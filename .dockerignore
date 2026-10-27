@@ -1,16 +1,23 @@
+# Only app/ and requirements.txt are copied into the image; keep everything
+# else out of the build context. "**/" makes a pattern match in every folder
+# (a bare "__pycache__" would only match at the top level).
 .git
 .gitignore
+.gitattributes
 .venv
 venv
-__pycache__
-*.pyc
-.pytest_cache
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
 test-results
 instance
 data
-*.db
+**/*.db
+**/*.sqlite3
+**/.env
 tests
 k8s
 Jenkinsfile
 README.md
+pytest.ini
 requirements-dev.txt
