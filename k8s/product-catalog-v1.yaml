@@ -1,0 +1,97 @@
+# Product Catalog v1: storage, Deployment and Service.
+# Open at http://localhost:8081 (Docker Desktop publishes LoadBalancer ports on localhost).
+---
+# Each version gets its own volume, so v1, v2 and v3 never share a database.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: product-catalog-v1-data
+  namespace: product-catalog
+  labels: {app: product-catalog, version: v1}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-catalog-v1
+  namespace: product-catalog
+  labels: {app: product-catalog, version: v1}
+spec:
+  replicas: 1
+  # SQLite lives on a ReadWriteOnce volume: stop the old pod before starting
+  # the new one, so two pods never write the same database file.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {app: product-catalog, version: v1}
+  template:
+    metadata:
+      labels: {app: product-catalog, version: v1}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000        # appuser in the image
+        runAsGroup: 1000
+        fsGroup: 1000          # makes the mounted volume writable by appuser
+      containers:
+        - name: product-catalog
+          image: docker.io/shehfin/product-catalog:v1
+          # Jenkins republishes the same tag (v1) on every build, so always
+          # check Docker Hub for a newer image when a pod starts.
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 5000
+          env:
+            - name: DATABASE_PATH
+              value: /app/data/products.db
+            - name: SECRET_KEY            # created with kubectl, never stored in YAML
+              valueFrom:
+                secretKeyRef:
+                  name: product-catalog-secret
+                  key: SECRET_KEY
+          resources:
+            requests: {cpu: 50m, memory: 96Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          # v1 has no /health endpoint; the product list page reads the
+          # database, so a 200 from / means the app and its storage work.
+          readinessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /, port: http}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: product-catalog-v1-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-catalog-v1-service
+  namespace: product-catalog
+  labels: {app: product-catalog, version: v1}
+spec:
+  type: LoadBalancer
+  selector: {app: product-catalog, version: v1}
+  ports:
+    - name: http
+      port: 8081          # http://localhost:8081
+      targetPort: http
