@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{% if query is not none %}Search{% else %}Products{% endif %}{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <h1>{% if query is not none %}Search results{% else %}Products{% endif %}</h1>
+  <a class="button" href="{{ url_for('products.add_product') }}">+ Add Product</a>
+</section>
+
+<form class="search" action="{{ url_for('products.search') }}" method="get" role="search">
+  <label for="q" class="visually-hidden">Search by product ID or name</label>
+  <input id="q" name="q" type="search" value="{{ query or '' }}"
+         placeholder="Search by product ID or name">
+  <button type="submit">Search</button>
+  {% if query is not none %}
+    <a class="button button-secondary" href="{{ url_for('products.index') }}">Clear</a>
+  {% endif %}
+</form>
+
+{% if products %}
+  <p class="count">
+    {% if query is not none %}
+      {{ products|length }} product{{ '' if products|length == 1 else 's' }} matching “{{ query }}”
+    {% else %}
+      {{ products|length }} product{{ '' if products|length == 1 else 's' }}
+    {% endif %}
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Product ID</th>
+          <th>Name</th>
+          <th class="num">Price</th>
+          <th class="num">Quantity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for product in products %}
+        <tr>
+          <td><code>{{ product.product_id }}</code></td>
+          <td>{{ product.name }}</td>
+          <td class="num">{{ "%.2f"|format(product.price) }}</td>
+          <td class="num">{{ product.quantity }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% elif query is not none %}
+  <div class="empty">
+    <p>No products match “{{ query }}”.</p>
+    <p>Check the spelling, or try part of the product ID or name.</p>
+  </div>
+{% else %}
+  <div class="empty">
+    <p>No products yet.</p>
+    <p><a href="{{ url_for('products.add_product') }}">Add your first product</a> to get started.</p>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,3 @@
+# Keep LF line endings in the repo and in checkouts (Docker, Jenkins, Linux containers).
+* text=auto eol=lf
+*.bat text eol=crlf

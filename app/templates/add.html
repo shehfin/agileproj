@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Add Product{% endblock %}
+
+{% macro field(name, label, type="text", hint=None, attrs="") %}
+  <div class="field{% if errors.get(name) %} has-error{% endif %}">
+    <label for="{{ name }}">{{ label }}</label>
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}"
+           value="{{ form.get(name, '') }}" {{ attrs|safe }}
+           {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+    {% if errors.get(name) %}
+      <p class="error" id="{{ name }}-error">{{ errors[name] }}</p>
+    {% elif hint %}
+      <p class="hint">{{ hint }}</p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<section class="page-head">
+  <h1>Add Product</h1>
+</section>
+
+<form class="card form" method="post" action="{{ url_for('products.add_product') }}" novalidate>
+  {{ field("product_id", "Product ID", hint="Must be unique, e.g. P001.", attrs='maxlength="20" required') }}
+  {{ field("name", "Product name", attrs='maxlength="100" required') }}
+  <div class="field-row">
+    {{ field("price", "Price", hint="0 or more, e.g. 19.99.", attrs='inputmode="decimal" required') }}
+    {{ field("quantity", "Quantity", hint="Whole number, 0 or more.", attrs='inputmode="numeric" required') }}
+  </div>
+  <div class="actions">
+    <button type="submit">Save Product</button>
+    <a class="button button-secondary" href="{{ url_for('products.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

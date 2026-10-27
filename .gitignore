@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+test-results/
+
+# Local data (SQLite database lives here)
+instance/
+data/
+*.db
+*.sqlite3
+
+# Environment and editors
+.env
+.vscode/
+.idea/
