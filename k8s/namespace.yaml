@@ -1,0 +1,8 @@
+# All Product Catalog resources live in one namespace, so they are easy to
+# list (kubectl get all -n product-catalog) and to remove in one step.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: product-catalog
+  labels:
+    app: product-catalog
