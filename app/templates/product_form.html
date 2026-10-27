@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% set is_edit = mode == "edit" %}
+
+{% block title %}{% if is_edit %}Edit {{ product.product_id }}{% else %}Add Product{% endif %}{% endblock %}
+
+{% macro field(name, label, type="text", hint=None, attrs="") %}
+  <div class="field{% if errors.get(name) %} has-error{% endif %}">
+    <label for="{{ name }}">{{ label }}</label>
+    <input id="{{ name }}" name="{{ name }}" type="{{ type }}"
+           value="{{ form.get(name, '') }}" {{ attrs|safe }}
+           {% if errors.get(name) %}aria-invalid="true" aria-describedby="{{ name }}-error"{% endif %}>
+    {% if errors.get(name) %}
+      <p class="error" id="{{ name }}-error">{{ errors[name] }}</p>
+    {% elif hint %}
+      <p class="hint">{{ hint }}</p>
+    {% endif %}
+  </div>
+{% endmacro %}
+
+{% block content %}
+<section class="page-head">
+  <div>
+    <a class="back-link" href="{{ url_for('products.index') }}">← All products</a>
+    <h1>{% if is_edit %}Edit Product{% else %}Add Product{% endif %}</h1>
+    {% if is_edit %}<p class="subtitle">Editing <code>{{ product.product_id }}</code> · {{ product.name }}</p>{% endif %}
+  </div>
+</section>
+
+<form class="card form" method="post" novalidate
+      action="{% if is_edit %}{{ url_for('products.edit_product', product_id=product.product_id) }}{% else %}{{ url_for('products.add_product') }}{% endif %}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  {{ field("product_id", "Product ID",
+           hint="Unique. Letters, numbers, - and _ only, e.g. P001.",
+           attrs='maxlength="20" autocomplete="off" required' ~ (' autofocus' if not is_edit else '')) }}
+  {{ field("name", "Product name", hint="Up to 100 characters.",
+           attrs='maxlength="100" required' ~ (' autofocus' if is_edit else '')) }}
+  <div class="field-row">
+    {{ field("price", "Price", hint="0 to 1,000,000, up to 2 decimals.",
+             attrs='inputmode="decimal" required') }}
+    {{ field("quantity", "Quantity", hint="Whole number, 0 to 1,000,000.",
+             attrs='inputmode="numeric" required') }}
+  </div>
+
+  <div class="actions">
+    <button type="submit">{% if is_edit %}Save Changes{% else %}Save Product{% endif %}</button>
+    <a class="button button-secondary" href="{{ url_for('products.index') }}">Cancel</a>
+  </div>
+</form>
+{% endblock %}

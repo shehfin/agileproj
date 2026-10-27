@@ -34,15 +34,30 @@
           <th>Name</th>
           <th class="num">Price</th>
           <th class="num">Quantity</th>
+          <th class="actions-col"><span class="visually-hidden">Actions</span></th>
         </tr>
       </thead>
       <tbody>
         {% for product in products %}
         <tr>
-          <td><code>{{ product.product_id }}</code></td>
-          <td>{{ product.name }}</td>
-          <td class="num">{{ "%.2f"|format(product.price) }}</td>
-          <td class="num">{{ product.quantity }}</td>
+          <td data-label="Product ID"><code>{{ product.product_id }}</code></td>
+          <td data-label="Name" class="name">{{ product.name }}</td>
+          <td data-label="Price" class="num">{{ "%.2f"|format(product.price) }}</td>
+          <td data-label="Quantity" class="num">{{ product.quantity }}</td>
+          <td class="row-actions">
+            <div class="action-buttons">
+              <a class="button button-small button-secondary"
+                 href="{{ url_for('products.edit_product', product_id=product.product_id) }}"
+                 aria-label="Edit {{ product.product_id }}">Edit</a>
+              <form method="post"
+                    action="{{ url_for('products.delete_product', product_id=product.product_id) }}"
+                    data-confirm="Delete {{ product.product_id }} ({{ product.name }})? This cannot be undone.">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="button-small button-danger"
+                        aria-label="Delete {{ product.product_id }}">Delete</button>
+              </form>
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

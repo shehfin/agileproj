@@ -15,11 +15,18 @@ CREATE TABLE IF NOT EXISTS products (
 """
 
 
+def _casefold(value):
+    return value.casefold() if isinstance(value, str) else value
+
+
 def get_db():
     """Return the database connection for the current request."""
     if "db" not in g:
         g.db = sqlite3.connect(current_app.config["DATABASE"])
         g.db.row_factory = sqlite3.Row  # access columns by name
+        # SQLite's LIKE only ignores case for A-Z; casefold() handles any
+        # language, so "ÉCLAIR" matches "éclair".
+        g.db.create_function("casefold", 1, _casefold, deterministic=True)
     return g.db
 
 

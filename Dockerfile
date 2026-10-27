@@ -1,7 +1,7 @@
 FROM python:3.13-slim
 
 LABEL org.opencontainers.image.title="product-catalog" \
-      org.opencontainers.image.version="v1" \
+      org.opencontainers.image.version="v2" \
       student.id="24MIS0175"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

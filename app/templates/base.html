@@ -5,14 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Products{% endblock %} · Product Catalog</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
 </head>
 <body>
+  {% set endpoint = request.endpoint or "" %}
   <header class="site-header">
     <div class="container header-inner">
-      <a class="brand" href="{{ url_for('products.index') }}">Product Catalog</a>
-      <nav class="nav">
-        <a href="{{ url_for('products.index') }}">Products</a>
-        <a href="{{ url_for('products.add_product') }}">Add Product</a>
+      <a class="brand" href="{{ url_for('products.index') }}">
+        <span class="brand-mark" aria-hidden="true">▦</span> Product Catalog
+        <span class="version-tag">{{ app_version }}</span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="{{ url_for('products.index') }}"
+           {% if endpoint in ("products.index", "products.search") %}class="active" aria-current="page"{% endif %}>Products</a>
+        <a href="{{ url_for('products.add_product') }}"
+           {% if endpoint == "products.add_product" %}class="active" aria-current="page"{% endif %}>Add Product</a>
       </nav>
     </div>
   </header>
@@ -20,7 +27,7 @@
   <main class="container">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
-        <div class="alert alert-{{ category }}" role="alert">{{ message }}</div>
+        <div class="alert alert-{{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}">{{ message }}</div>
       {% endfor %}
     {% endwith %}
 
