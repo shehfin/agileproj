@@ -1,30 +1,73 @@
 {% extends "base.html" %}
 
-{% block title %}{% if query is not none %}Search{% else %}Products{% endif %}{% endblock %}
+{% set is_search = query is not none %}
+
+{% block title %}{% if is_search %}Search{% else %}Products{% endif %}{% endblock %}
+
+{% macro stock_badge(quantity) -%}
+  {%- if quantity == 0 -%}
+    <span class="badge badge-out">Out of stock</span>
+  {%- elif quantity < low_stock_threshold -%}
+    <span class="badge badge-low">Low stock</span>
+  {%- endif -%}
+{%- endmacro %}
 
 {% block content %}
 <section class="page-head">
-  <h1>{% if query is not none %}Search results{% else %}Products{% endif %}</h1>
+  <div>
+    <h1>{% if is_search %}Search results{% else %}Products{% endif %}</h1>
+    <p class="subtitle">Low stock means fewer than {{ low_stock_threshold }} units.</p>
+  </div>
   <a class="button" href="{{ url_for('products.add_product') }}">+ Add Product</a>
 </section>
 
-<form class="search" action="{{ url_for('products.search') }}" method="get" role="search">
-  <label for="q" class="visually-hidden">Search by product ID or name</label>
-  <input id="q" name="q" type="search" value="{{ query or '' }}"
-         placeholder="Search by product ID or name">
-  <button type="submit">Search</button>
-  {% if query is not none %}
-    <a class="button button-secondary" href="{{ url_for('products.index') }}">Clear</a>
-  {% endif %}
+<form class="card list-controls" action="{{ url_for('products.index') }}" method="get" role="search">
+  <div class="search-row">
+    <label for="q" class="visually-hidden">Search by product ID or name</label>
+    <input id="q" name="q" type="search" value="{{ query or '' }}"
+           placeholder="Search by product ID or name">
+    <button type="submit">Search</button>
+  </div>
+  <div class="filter-row">
+    <div class="control">
+      <label for="sort">Sort by</label>
+      <select id="sort" name="sort" data-autosubmit>
+        {% for key, (label, _) in sort_options.items() %}
+          <option value="{{ key }}" {% if options.sort == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="control">
+      <label for="order">Order</label>
+      <select id="order" name="order" data-autosubmit>
+        {% for key, label in order_options.items() %}
+          <option value="{{ key }}" {% if options.order == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="control">
+      <label for="stock">Stock</label>
+      <select id="stock" name="stock" data-autosubmit>
+        {% for key, label in stock_options.items() %}
+          <option value="{{ key }}" {% if options.stock == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="control-buttons">
+      <noscript><button type="submit" class="button-secondary">Apply</button></noscript>
+      {% if is_search or is_filtered %}
+        <a class="button button-secondary" href="{{ url_for('products.index') }}">Reset</a>
+      {% endif %}
+    </div>
+  </div>
 </form>
 
 {% if products %}
   <p class="count">
-    {% if query is not none %}
-      {{ products|length }} product{{ '' if products|length == 1 else 's' }} matching “{{ query }}”
-    {% else %}
-      {{ products|length }} product{{ '' if products|length == 1 else 's' }}
-    {% endif %}
+    {{ products|length }} product{{ '' if products|length == 1 else 's' }}
+    {%- if is_search %} matching “{{ query }}”{% endif %}
+    {%- if options.stock != 'all' %} · {{ stock_options[options.stock]|lower }}{% endif %}
+    {%- if options.sort != 'id' or options.order != 'asc' %} · sorted by {{ sort_options[options.sort][0]|lower }}, {{ order_options[options.order]|lower }}{% endif %}
   </p>
   <div class="table-wrap">
     <table>
@@ -39,11 +82,13 @@
       </thead>
       <tbody>
         {% for product in products %}
-        <tr>
+        <tr class="{% if product.quantity == 0 %}row-out{% elif product.quantity < low_stock_threshold %}row-low{% endif %}">
           <td data-label="Product ID"><code>{{ product.product_id }}</code></td>
           <td data-label="Name" class="name">{{ product.name }}</td>
           <td data-label="Price" class="num">{{ "%.2f"|format(product.price) }}</td>
-          <td data-label="Quantity" class="num">{{ product.quantity }}</td>
+          <td data-label="Quantity" class="num">
+            <span class="qty-cell"><span class="qty">{{ product.quantity }}</span> {{ stock_badge(product.quantity) }}</span>
+          </td>
           <td class="row-actions">
             <div class="action-buttons">
               <a class="button button-small button-secondary"
@@ -63,15 +108,29 @@
       </tbody>
     </table>
   </div>
-{% elif query is not none %}
+{% elif not has_any_products %}
   <div class="empty">
-    <p>No products match “{{ query }}”.</p>
-    <p>Check the spelling, or try part of the product ID or name.</p>
+    <p class="empty-title">No products yet.</p>
+    <p><a href="{{ url_for('products.add_product') }}">Add your first product</a> to get started.</p>
+  </div>
+{% elif is_search %}
+  <div class="empty">
+    <p class="empty-title">No products match “{{ query }}”{% if options.stock != 'all' %} with the “{{ stock_options[options.stock] }}” filter{% endif %}.</p>
+    <p>Check the spelling, try part of the product ID or name, or <a href="{{ url_for('products.index') }}">show all products</a>.</p>
   </div>
 {% else %}
   <div class="empty">
-    <p>No products yet.</p>
-    <p><a href="{{ url_for('products.add_product') }}">Add your first product</a> to get started.</p>
+    {% if options.stock == 'low' %}
+      <p class="empty-title">No products are low on stock.</p>
+      <p>Every product has at least {{ low_stock_threshold }} units.</p>
+    {% elif options.stock == 'out' %}
+      <p class="empty-title">No products are out of stock.</p>
+      <p>Every product has at least 1 unit.</p>
+    {% else %}
+      <p class="empty-title">Every product is low on stock.</p>
+      <p>No product has {{ low_stock_threshold }} or more units.</p>
+    {% endif %}
+    <p><a href="{{ url_for('products.index') }}">Show all products</a></p>
   </div>
 {% endif %}
 {% endblock %}

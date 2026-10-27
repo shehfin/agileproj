@@ -16,6 +16,8 @@
         <span class="version-tag">{{ app_version }}</span>
       </a>
       <nav class="nav" aria-label="Main">
+        <a href="{{ url_for('dashboard.dashboard') }}"
+           {% if endpoint == "dashboard.dashboard" %}class="active" aria-current="page"{% endif %}>Dashboard</a>
         <a href="{{ url_for('products.index') }}"
            {% if endpoint in ("products.index", "products.search") %}class="active" aria-current="page"{% endif %}>Products</a>
         <a href="{{ url_for('products.add_product') }}"

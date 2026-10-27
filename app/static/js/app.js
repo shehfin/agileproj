@@ -6,3 +6,11 @@ document.addEventListener("submit", function (event) {
     event.preventDefault();
   }
 });
+
+// Apply sort/filter choices as soon as they change. Without JavaScript,
+// an Apply button is shown instead.
+document.addEventListener("change", function (event) {
+  if (event.target.hasAttribute("data-autosubmit")) {
+    event.target.form.submit();
+  }
+});

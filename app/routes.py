@@ -1,7 +1,16 @@
-"""Product routes: list, search, add, edit and delete."""
+"""Product routes: list, search, sort/filter, add, edit and delete."""
 import sqlite3
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
 from .db import get_db
 from .validation import validate_product
@@ -9,6 +18,23 @@ from .validation import validate_product
 bp = Blueprint("products", __name__)
 
 PRODUCT_COLUMNS = "product_id, name, price, quantity"
+
+# Only these fixed SQL snippets ever reach ORDER BY. User input picks a key;
+# it is never placed into the SQL itself.
+SORT_OPTIONS = {
+    "id": ("Product ID", "product_id"),
+    "name": ("Name", "casefold(name)"),
+    "price": ("Price", "price"),
+    "quantity": ("Quantity", "quantity"),
+}
+ORDER_OPTIONS = {"asc": "Ascending", "desc": "Descending"}
+STOCK_OPTIONS = {
+    "all": "All stock levels",
+    "low": "Low stock",
+    "out": "Out of stock",
+    "ok": "In stock (not low)",
+}
+DEFAULT_LIST_OPTIONS = {"sort": "id", "order": "asc", "stock": "all"}
 
 
 def _escape_like(text):
@@ -47,12 +73,71 @@ def _price_for_input(price):
     return f"{price:.2f}" if round(price, 2) == price else str(price)
 
 
+def _list_options(args):
+    """Read sort/order/stock from the URL, falling back to defaults for unknown values."""
+    options = {}
+    for key, allowed in (("sort", SORT_OPTIONS), ("order", ORDER_OPTIONS), ("stock", STOCK_OPTIONS)):
+        value = args.get(key, DEFAULT_LIST_OPTIONS[key])
+        options[key] = value if value in allowed else DEFAULT_LIST_OPTIONS[key]
+    return options
+
+
+def _fetch_products(query, options):
+    threshold = current_app.config["LOW_STOCK_THRESHOLD"]
+    conditions, params = [], []
+
+    if query:
+        # Partial, case-insensitive match on ID or name. Values are passed as
+        # parameters, never formatted into the SQL string.
+        pattern = f"%{_escape_like(query)}%"
+        conditions.append(
+            "(casefold(product_id) LIKE casefold(?) ESCAPE '\\' "
+            "OR casefold(name) LIKE casefold(?) ESCAPE '\\')"
+        )
+        params += [pattern, pattern]
+
+    if options["stock"] == "low":
+        conditions.append("quantity < ?")
+        params.append(threshold)
+    elif options["stock"] == "out":
+        conditions.append("quantity = 0")
+    elif options["stock"] == "ok":
+        conditions.append("quantity >= ?")
+        params.append(threshold)
+
+    sql = f"SELECT {PRODUCT_COLUMNS} FROM products"
+    if conditions:
+        sql += " WHERE " + " AND ".join(conditions)
+    direction = "DESC" if options["order"] == "desc" else "ASC"
+    # product_id breaks ties so equal prices/quantities always list in the same order.
+    sql += f" ORDER BY {SORT_OPTIONS[options['sort']][1]} {direction}, product_id"
+    return get_db().execute(sql, params).fetchall()
+
+
+def _render_product_list(query):
+    options = _list_options(request.args)
+    products = _fetch_products(query, options)
+    has_any_products = bool(products) or (
+        get_db().execute("SELECT 1 FROM products LIMIT 1").fetchone() is not None
+    )
+    return render_template(
+        "index.html",
+        products=products,
+        query=query,
+        options=options,
+        is_filtered=options != DEFAULT_LIST_OPTIONS,
+        has_any_products=has_any_products,
+        sort_options=SORT_OPTIONS,
+        order_options=ORDER_OPTIONS,
+        stock_options=STOCK_OPTIONS,
+    )
+
+
 @bp.route("/")
 def index():
-    products = get_db().execute(
-        f"SELECT {PRODUCT_COLUMNS} FROM products ORDER BY product_id"
-    ).fetchall()
-    return render_template("index.html", products=products, query=None)
+    # The list page's own form sends q here; a blank q simply lists everything.
+    query = request.args.get("q", "").strip() or None
+    return _render_product_list(query)
 
 
 @bp.route("/search")
@@ -61,18 +146,7 @@ def search():
     if not query:
         flash("Enter a product ID or name to search.", "error")
         return redirect(url_for("products.index"))
-
-    # Partial, case-insensitive match on ID or name. Values are passed as
-    # parameters, never formatted into the SQL string.
-    pattern = f"%{_escape_like(query)}%"
-    products = get_db().execute(
-        f"SELECT {PRODUCT_COLUMNS} FROM products "
-        "WHERE casefold(product_id) LIKE casefold(?) ESCAPE '\\' "
-        "OR casefold(name) LIKE casefold(?) ESCAPE '\\' "
-        "ORDER BY product_id",
-        (pattern, pattern),
-    ).fetchall()
-    return render_template("index.html", products=products, query=query)
+    return _render_product_list(query)
 
 
 @bp.route("/products/add", methods=["GET", "POST"])

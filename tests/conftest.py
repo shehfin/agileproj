@@ -13,7 +13,15 @@ def db_path(tmp_path):
 
 @pytest.fixture
 def app(db_path):
-    return create_app({"TESTING": True, "DATABASE": db_path, "SECRET_KEY": "test"})
+    # Pin the threshold so an environment variable can't change test results.
+    return create_app(
+        {
+            "TESTING": True,
+            "DATABASE": db_path,
+            "SECRET_KEY": "test",
+            "LOW_STOCK_THRESHOLD": 10,
+        }
+    )
 
 
 @pytest.fixture
