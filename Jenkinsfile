@@ -149,6 +149,10 @@ pipeline {
                         # saved in the Jenkins service account's profile.
                         $env:DOCKER_CONFIG = Join-Path $env:WORKSPACE '.docker-config'
                         New-Item -ItemType Directory -Force $env:DOCKER_CONFIG | Out-Null
+                        # Jenkins' PowerShell wrapper pipes text to programs as UTF-8 *with*
+                        # a byte-order mark, which would reach docker as part of the token
+                        # ("incorrect username or password"). Pipe without a BOM instead.
+                        $OutputEncoding = New-Object System.Text.UTF8Encoding $false
                         try {
                             $env:DOCKERHUB_TOKEN | docker login --username $env:DOCKERHUB_USER --password-stdin
                             if ($LASTEXITCODE -ne 0) {
