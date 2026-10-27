@@ -144,30 +144,33 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: env.DOCKERHUB_CREDENTIALS_ID,
                                                   usernameVariable: 'DOCKERHUB_USER',
                                                   passwordVariable: 'DOCKERHUB_TOKEN')]) {
-                    powershell '''
-                        # Use a throwaway Docker config folder so the login is never
-                        # saved in the Jenkins service account's profile.
-                        $env:DOCKER_CONFIG = Join-Path $env:WORKSPACE '.docker-config'
-                        New-Item -ItemType Directory -Force $env:DOCKER_CONFIG | Out-Null
-                        # Jenkins' PowerShell wrapper pipes text to programs as UTF-8 *with*
-                        # a byte-order mark, which would reach docker as part of the token
-                        # ("incorrect username or password"). Pipe without a BOM instead.
-                        $OutputEncoding = New-Object System.Text.UTF8Encoding $false
-                        try {
-                            $env:DOCKERHUB_TOKEN | docker login --username $env:DOCKERHUB_USER --password-stdin
-                            if ($LASTEXITCODE -ne 0) {
-                                throw "Docker Hub login failed for '$env:DOCKERHUB_USER'. Check the Jenkins credential '$env:DOCKERHUB_CREDENTIALS_ID' (password must be an access token with Read & Write scope)."
-                            }
-                            $output = docker push $env:IMAGE
-                            $output | Write-Output
-                            if ($LASTEXITCODE -ne 0) { throw "docker push $env:IMAGE failed (output above)." }
-                            $digest = $output | Select-String 'digest: sha256:' | Select-Object -Last 1
-                            Write-Output "Published $env:IMAGE -> $digest"
-                        }
-                        finally {
-                            docker logout | Out-Null
-                            Remove-Item -Recurse -Force $env:DOCKER_CONFIG -ErrorAction SilentlyContinue
-                        }
+                    // cmd.exe, not PowerShell: Jenkins' PowerShell wrapper puts a UTF-8
+                    // byte-order mark in front of text piped to programs, so docker
+                    // received BOM + token and Docker Hub rejected it. "echo X|" sends
+                    // exactly X plus CR LF, which docker trims. (Docker Hub access
+                    // tokens only contain A-Z a-z 0-9 _ -, so echo needs no escaping.)
+                    // A throwaway DOCKER_CONFIG keeps the login out of the service profile.
+                    bat '''
+                        @echo off
+                        set "DOCKER_CONFIG=%WORKSPACE%\\.docker-config"
+                        if not exist "%DOCKER_CONFIG%" mkdir "%DOCKER_CONFIG%"
+
+                        echo %DOCKERHUB_TOKEN%| docker login --username %DOCKERHUB_USER% --password-stdin
+                        if errorlevel 1 (
+                            rmdir /s /q "%DOCKER_CONFIG%"
+                            echo ERROR: Docker Hub login failed for %DOCKERHUB_USER%. Check the Jenkins credential %DOCKERHUB_CREDENTIALS_ID% - its password must be a Docker Hub access token with Read and Write scope.
+                            exit /b 1
+                        )
+
+                        docker push %IMAGE%
+                        set PUSH_EXIT=%ERRORLEVEL%
+                        docker logout >nul
+                        rmdir /s /q "%DOCKER_CONFIG%"
+                        if not "%PUSH_EXIT%"=="0" (
+                            echo ERROR: docker push %IMAGE% failed - see the output above.
+                            exit /b 1
+                        )
+                        echo Published %IMAGE%
                     '''
                 }
             }
